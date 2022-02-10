@@ -240,23 +240,6 @@ void destruct(T* ptr) {
   free(reinterpret_cast<void*>(real));
 }
 
-// template <typename T, typename... Args>
-// requires has_extent_v<T> && (same_as<remove_extent_t<T>,
-// remove_reference<Args>> && ...) uniq_ptr<T,
-// decltype(&destruct<remove_extent_t<T>>)> make_uniq(Args&&... args) {
-//   size_t size = sizeof...(Args);
-//   size_t* allocated = reinterpret_cast<size_t*>(
-//       malloc(size * sizeof(remove_extent_t<T>) + sizeof(size_t)));
-//   allocated[0] = size;
-//   remove_extent_t<T>* ptr =
-//       reinterpret_cast<remove_extent_t<T>*>(allocated + 1);
-
-//   for (size_t i = 0; i < size; ++i)
-//     new (&ptr[i]) remove_extent_t<T>(forward<Args>(get<args));
-//   return uniq_ptr<T, decltype(&destruct<remove_extent_t<T>>)>{
-//       ptr, &destruct<remove_extent_t<T>>};
-// }
-
 template <typename T, typename... Args>
 requires has_extent_v<T> &&
     (same_as<remove_extent_t<T>, remove_reference_t<Args>>&&...)
