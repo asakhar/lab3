@@ -170,4 +170,18 @@ constexpr T&& forward(remove_reference_t<T>&& t) {
 
 using nullptr_t = decltype(nullptr);
 
+template<typename T, bool = true>
+struct condition_const {
+  using type = T const;
+};
+
+template<typename T>
+struct condition_const<T, false> {
+  using type = T;
+};
+
+template<typename T, bool Const>
+using conditional_const_t = typename condition_const<T, Const>::type;
+
+
 #endif  // TYPE_TRAITS_HPP

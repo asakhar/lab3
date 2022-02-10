@@ -64,31 +64,37 @@ class NoDefault {
 #include <cstring>
 
 int main(int argc, char const* argv[]) {
-  if (argc < 3) return -1;
-  char* end = nullptr;
-  size_t n = std::strtol(argv[1], &end, 10);
-  if (end != argv[1] + strlen(argv[1])) return -1;
-  auto ptr = make_uniq<SW[]>(n);
-  puts("");
-  auto ptr2 = make_uniq<S>(-1, -2);
-  puts("");
-  auto ptr3 = make_uniq<S>(-3, -4);
-  puts("");
-  auto res = ptr3 == ptr2;
-  std::cout << (res ? "true" : "false") << "\n";
-  puts("\n");
-  for (size_t i = 0; i < n; ++i) {
-    ptr[i] = SW{{std::strtol(argv[i + 2], &end, 10), static_cast<int>(i)}};
+  {
+    if (argc < 3) return -1;
+    char* end = nullptr;
+    size_t n = std::strtol(argv[1], &end, 10);
+    if (end != argv[1] + strlen(argv[1])) return -1;
+    auto ptr = make_uniq<SW[]>(n);
     puts("");
+    auto ptr2 = make_uniq<S>(-1, -2);
+    puts("");
+    auto ptr3 = make_uniq<S>(-3, -4);
+    puts("");
+    auto res = ptr3 == ptr2;
+    std::cout << (res ? "true" : "false") << "\n";
+    puts("\n");
+    for (size_t i = 0; i < n; ++i) {
+      ptr[i] = SW{{std::strtol(argv[i + 2], &end, 10), static_cast<int>(i)}};
+      puts("");
+    }
+    puts("");
+    ptr[1] = SW{};
+    puts("");
+    for (size_t i = 0; i < n; ++i) std::cout << ptr[i].s.getF() << " ";
+    puts("\n");
+    auto ptrs = make_uniq<NoDefault[]>(4, 2);
+    puts("\n");
+    auto ptrl = make_uniql<NoDefault[]>(NoDefault{4}, NoDefault{2});
+    puts("\n");
   }
-  puts("");
-  ptr[1] = SW{};
-  puts("");
-  for (size_t i = 0; i < n; ++i) std::cout << ptr[i].s.getF() << " ";
-  puts("\n");
-  auto ptrs = make_uniq<NoDefault[]>(4, 2);
-  puts("\n");
-  auto ptrl = make_uniql<NoDefault[]>(NoDefault{4}, NoDefault{2});
-  puts("\n");
+  {
+    puts("\n\n\n");
+    array<SW> arr{6};
+  }
   return 0;
 }

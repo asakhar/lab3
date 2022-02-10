@@ -3,6 +3,7 @@
 
 #include <compare>
 #include <cstddef>
+#include <stdexcept>
 #include <type_traits>
 
 #include "type_traits.hpp"
@@ -287,5 +288,90 @@ requires has_extent_v<T> && is_default_constructible_v<remove_extent_t<T>>
     uniq_ptr<T> make_uniqda(Deleter&& del, Allocator&& allocator, size_t size) {
   return {allocator(size), forward<Deleter>(del)};
 }
+
+template <typename T>
+class array {
+ public:
+  array(size_t size) noexcept : m_data{make_uniq<T[]>(size)}, m_size{size} {}
+
+  T& operator[](size_t idx) noexcept { return m_data[idx]; }
+  T const& operator[](size_t idx) const noexcept { return m_data[idx]; }
+  T& at(ssize_t idx) {
+    if (idx < 0 || idx >= m_size)
+      throw std::out_of_range("Array index is out of range");
+    return m_data[idx];
+  }
+  T at(ssize_t idx) const {
+    if (idx < 0 || idx >= m_size)
+      throw std::out_of_range("Array index is out of range");
+    return m_data[idx];
+  }
+  size_t size() const {
+    return m_size;
+  }
+  T* data() {
+    return m_data.get();
+  }
+  T const* data() const {
+    return m_data.get();
+  }
+  template <bool isConst>
+  class iterator {
+   public:
+    iterator& operator++() {
+      if (idx < bound.size()) ++idx;
+      return *this;
+    }
+    iterator operator++(int) const {
+      iterator res = *this;
+      return ++res;
+    }
+    iterator& operator--() {
+      if (idx >= 0) --idx;
+      return *this;
+    }
+    iterator operator--(int) const {
+      iterator res = *this;
+      return --res;
+    }
+    conditional_const_t<T, isConst>& operator[](ssize_t i) const {
+      return bound[static_cast<ssize_t>(idx) + i];
+    }
+    iterator operator+(ssize_t i) const {
+      return iterator(bound,
+                      static_cast<size_t>(static_cast<ssize_t>(idx) + i));
+    }
+    iterator operator-(ssize_t i) const {
+      return iterator(bound,
+                      static_cast<size_t>(static_cast<ssize_t>(idx) - i));
+    }
+    conditional_const_t<T, isConst>& operator*() const { return bound[idx]; }
+    conditional_const_t<T, isConst>* operator->() const { return &bound[idx]; }
+    std::partial_ordering operator<=>(iterator const& it) const {
+      if (*it.bound != *bound) return std::partial_ordering::unordered;
+      if (idx > it.idx) return std::partial_ordering::greater;
+      if (idx < it.idx) return std::partial_ordering::less;
+      return std::partial_ordering::equivalent;
+    }
+    bool operator!=(iterator const& it) const {
+      return &bound != &it.bound || idx != it.idx;
+    }
+
+    friend class array;
+   private:
+    iterator(conditional_const_t<array, isConst>& bnd, size_t i)
+        : bound{bnd}, idx{i} {};
+    conditional_const_t<array, isConst>& bound;
+    size_t idx;
+  };
+  iterator<false> begin() { return iterator<false>{*this, 0}; }
+  iterator<false> end() { return iterator<false>{*this, size()}; }
+  iterator<true> begin() const { return iterator<true>{*this, 0}; }
+  iterator<true> end() const { return iterator<true>{*this, size()}; }
+
+ private:
+  uniq_ptr<T[]> m_data;
+  size_t m_size;
+};
 
 #endif  // SMARTP_HPP
