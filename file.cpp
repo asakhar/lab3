@@ -7,18 +7,18 @@ void doNothing(int) {}
 
 void (*errorHandler)(int) = doNothing;
 
-File::File(char const *filename, IOMode mode) { open(filename, mode); }
-void File::open(int fileDescryptor, IOMode mode) {
+void BasicFile::open(int fileDescryptor, IOMode mode) {
   close();
+  for(auto oi : _open_internal)
+    std::invoke(oi, this);
   fd = fileDescryptor;
   fmode = mode;
-  rbuffer.size = 0;
-  rbuffer.pos = 0;
-  wbuffer.size = 0;
-  fn = array<char>(1, '\0');
+  fn.reset();
 }
-bool File::open(char const *filename, IOMode mode) {
+bool BasicFile::open(char const *filename, IOMode mode) {
   close();
+  for(auto oi : _open_internal)
+    std::invoke(oi, this);
   int flags = O_RDONLY;
   if (mode == READWRITE)
     flags = O_RDWR;
@@ -38,15 +38,11 @@ bool File::open(char const *filename, IOMode mode) {
     return false;
   }
   fmode = mode;
-  rbuffer.size = 0;
-  rbuffer.pos = 0;
-  wbuffer.size = 0;
   fn = array<char>(strlen(filename) + 1, '\0');
   strcpy(fn.get(), filename);
   return true;
 }
-void File::close() {
-  flush();
+void BasicFile::close() {
   if (fd != -1) {
     if (::close(fd) == -1) {
       perror("Error closing file");
@@ -59,23 +55,21 @@ void File::close() {
   fn.reset();
 }
 File::~File() { close(); }
-int File::release() {
+int BasicFile::release() {
   auto tmp = fd;
   fn.reset();
   fd = -1;
   return tmp;
 }
-File::File(int fileDescryptor, IOMode mode) { open(fileDescryptor, mode); }
 
 File fin{STDIN_FILENO, File::IOMode::READ};
 File fout{STDOUT_FILENO, File::IOMode::WRITE};
 File ferr{STDERR_FILENO, File::IOMode::WRITE};
-array<char> File::readline() {
+array<char> IFile::readline() {
   if ((fmode & READ) == 0) {
     // ##########
     return {1, '\0'};
   }
-  flush();
   lseek(fd, roffset.off, roffset.pos);
   array<char> buffer(BUFFER_SIZE, '\0');
   ssize_t size = BUFFER_SIZE;
@@ -151,12 +145,11 @@ array<char> File::readline() {
   }
   return buffer;
 }
-ssize_t File::read(array<char> &buffer, ssize_t size) {
+ssize_t IFile::read(array<char> &buffer, ssize_t size) {
   if ((fmode & READ) == 0) {
     // ##########
     return 0;
   }
-  flush();
   lseek(fd, roffset.off, roffset.pos);
   ssize_t totalRead = 0;
   while (size != 0) {
@@ -198,7 +191,7 @@ ssize_t File::read(array<char> &buffer, ssize_t size) {
   }
   return totalRead;
 }
-ssize_t File::write(array<char> const &buffer, ssize_t size) {
+ssize_t OFile::write(array<char> const &buffer, ssize_t size) {
   if ((fmode & WRITE) == 0) {
     // ##########
     return 0;
@@ -218,18 +211,17 @@ ssize_t File::write(array<char> const &buffer, ssize_t size) {
   }
   return actualWritten;
 }
-void File::wseek(long offset, IOPos pos) {
+void OFile::wseek(long offset, IOPos pos) {
   flush();
   woffset = {offset, pos};
   wbuffer.size = 0;
 }
-void File::rseek(long offset, IOPos pos) {
-  flush();
+void IFile::rseek(long offset, IOPos pos) {
   roffset = {offset, pos};
   rbuffer.pos = 0;
   rbuffer.size = 0;
 }
-ssize_t File::flush() {
+ssize_t OFile::flush() {
   if (wbuffer.size != 0) {
     lseek(fd, woffset.off, woffset.pos);
     auto res = ::write(fd, wbuffer.buf.get(), wbuffer.size);
@@ -247,7 +239,13 @@ ssize_t File::flush() {
   }
   return 0;
 }
-ssize_t File::write(char const *buffer, size_t size) {
+ssize_t OFile::write(char const *buffer, size_t size) {
+  array<char> buf{size, '\0'};
+  memcpy(buf.get(), buffer, size);
+  return write(buf, size);
+}
+ssize_t OFile::write(char const *buffer) {
+  size_t size = strlen(buffer);
   array<char> buf{size, '\0'};
   memcpy(buf.get(), buffer, size);
   return write(buf, size);
