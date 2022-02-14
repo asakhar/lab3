@@ -7,12 +7,11 @@
 enum class IOMode : int { READ = 1, WRITE = 2, READWRITE = 3 };
 enum class IOPos : int { SET = 0, CUR = 1, END = 2 };
 
-template <character_type T>
-class basic_stream_traits {
- public:
+template <character_type T> class basic_stream_traits {
+public:
   virtual ~basic_stream_traits() = default;
 
- protected:
+protected:
   static constexpr size_t BUFFER_SIZE = 3;
   struct {
     array<T> buf{BUFFER_SIZE};
@@ -30,7 +29,7 @@ class basic_stream_traits {
 
 template <character_type T, typename HANDLE_T>
 class basic_fstream_traits : public basic_stream_traits<T> {
- public:
+public:
   void openstream() {
     for (auto it = m_open_actions.begin(); it != m_open_actions.end(); ++it) {
       invoke(*it, this);
@@ -47,15 +46,15 @@ class basic_fstream_traits : public basic_stream_traits<T> {
     this->m_rbuffer.pos = 0;
     this->m_rbuffer.size = 0;
   }
-  T const* getFileName() const { return m_fn.data(); }
-  void setFileName(T const* filename) {
+  T const *getFileName() const { return m_fn.data(); }
+  void setFileName(T const *filename) {
     m_fn = array<T>(filename, stringlen(filename) + 1);
   }
   virtual ~basic_fstream_traits() = default;
 
- protected:
+protected:
   static constexpr HANDLE_T INVALID_HANDLE = -1;
-  vector<void (*)(basic_fstream_traits*)> m_open_actions;
+  vector<void (*)(basic_fstream_traits *)> m_open_actions;
   bool m_isSeekable = true;
 
   array<T> m_fn;
@@ -63,8 +62,8 @@ class basic_fstream_traits : public basic_stream_traits<T> {
   HANDLE_T m_handle = INVALID_HANDLE;
 };
 
-extern void (*file_error_handler)(char const* FILE, char const* FUNCTION);
-void default_file_error_handler(char const* FILE, char const* FUNCTION);
+extern void (*file_error_handler)(char const *FILE, char const *FUNCTION);
+void default_file_error_handler(char const *FILE, char const *FUNCTION);
 
 #ifdef unix
 #include <fcntl.h>
@@ -73,7 +72,7 @@ void default_file_error_handler(char const* FILE, char const* FUNCTION);
 
 template <character_type T>
 class basic_fstream_unix : public basic_fstream_traits<T, int> {
- public:
+public:
   basic_fstream_unix() { this->m_open_actions.append(&open_unix); }
 
   ~basic_fstream_unix() {
@@ -84,14 +83,17 @@ class basic_fstream_unix : public basic_fstream_traits<T, int> {
     this->setFileName("(no file)");
   }
 
- protected:
-  static void open_unix(basic_fstream_traits<T, int>* self) {
+protected:
+  static void open_unix(basic_fstream_traits<T, int> *self) {
     int flags = O_RDONLY;
-    if (self->getOpenMode() == IOMode::WRITE) flags = O_WRONLY | O_CREAT;
+    if (self->getOpenMode() == IOMode::WRITE) {
+      flags = O_WRONLY | O_CREAT;
+    }
     if (static_cast<IOMode>(static_cast<int>(self->getOpenMode()) &
                             static_cast<int>(IOMode::READWRITE)) ==
-        IOMode::READWRITE)
+        IOMode::READWRITE) {
       flags = O_RDWR | O_CREAT;
+    }
     constexpr int mode = 0666;
     self->setHandle(open(self->getFileName(), flags, mode));
     if (self->getHandle() == basic_fstream_traits<T, int>::INVALID_HANDLE) {
@@ -103,8 +105,8 @@ class basic_fstream_unix : public basic_fstream_traits<T, int> {
 
 template <character_type T>
 class basic_ifstream : public basic_fstream_unix<T> {
- public:
-  basic_ifstream(array<T> const& filename) {
+public:
+  basic_ifstream(array<T> const &filename) {
     this->m_fn = filename;
     this->m_mode = IOMode::READ;
     this->openstream();
@@ -117,7 +119,8 @@ class basic_ifstream : public basic_fstream_unix<T> {
   }
 
   virtual ssize_t rseek(ssize_t offset, IOPos position) {
-    if (!this->m_isSeekable) return -1l;
+    if (!this->m_isSeekable)
+      return -1l;
     if (lseek(this->m_handle,
               this->m_roffset + static_cast<ssize_t>(this->m_rbuffer.pos) -
                   static_cast<ssize_t>(this->m_rbuffer.size),
@@ -138,6 +141,12 @@ class basic_ifstream : public basic_fstream_unix<T> {
     return this->m_roffset + static_cast<ssize_t>(this->m_rbuffer.pos) -
            static_cast<ssize_t>(this->m_rbuffer.size);
   }
+  ssize_t tellend() {
+    if (this->m_isSeekable)
+      return ::lseek(this->m_handle, 0, SEEK_END);
+    return 0l;
+  }
+  bool eof() { return tellend() == tellr(); }
   static bool is_nl(T ch) { return ch == '\n'; }
   virtual pair<array<T>, size_t> readline() { return readUntil(&is_nl); }
   virtual pair<array<T>, size_t> readUntil(bool (*predicate)(T)) {
@@ -148,29 +157,29 @@ class basic_ifstream : public basic_fstream_unix<T> {
       auto [readsize, res] =
           readUntil(result, prevsize, result.capacity() - prevsize, predicate);
       totalRead += readsize;
-      if (res) break;
-      if (readsize + prevsize != result.capacity()) break;
+      if (res)
+        break;
+      if (readsize + prevsize != result.capacity())
+        break;
       array<T> newarray{result.capacity() << 1};
-      for (size_t i = 0; i < result.capacity(); ++i) newarray[i] = result[i];
+      for (size_t i = 0; i < result.capacity(); ++i)
+        newarray[i] = result[i];
       result = forward<array<T>>(newarray);
     }
     return {result, totalRead};
   }
-  virtual pair<size_t, bool> readUntil(array<T>& buffer, bool (*predicate)(T)) {
+  virtual pair<size_t, bool> readUntil(array<T> &buffer, bool (*predicate)(T)) {
     return readUntil(buffer, 0, buffer.capacity(), predicate);
   }
-  bool checkNeedsFill(size_t needed) const {
-    return this->m_rbuffer.size - this->m_rbuffer.pos < needed &&
-           this->m_rbuffer.size != this->m_rbuffer.buf.capacity();
-  }
-  virtual pair<size_t, bool> readUntil(array<T>& buffer, size_t start,
+  virtual pair<size_t, bool> readUntil(array<T> &buffer, size_t start,
                                        size_t size, bool (*predicate)(T)) {
     size_t actualRead = 0;
     bool found = false;
     while (actualRead != size) {
-      if (checkNeedsFill(size - actualRead)) {
+      if (checkNeedsFill()) {
         auto filled = fillBuffer();
-        if (filled == 0) break;
+        if (filled == 0)
+          break;
       }
       auto result = consumeUntil(buffer, actualRead + start, size - actualRead,
                                  predicate);
@@ -182,29 +191,40 @@ class basic_ifstream : public basic_fstream_unix<T> {
     }
     return {actualRead, found};
   }
-  virtual size_t read(array<T>& buffer, size_t size) {
+  virtual size_t read(array<T> &buffer, size_t size) {
     size_t actualRead = 0;
     while (actualRead != size) {
-      if (checkNeedsFill(size - actualRead)) {
+      if (checkNeedsFill()) {
         auto filled = fillBuffer();
-        if (filled == 0) break;
+        if (filled == 0)
+          break;
       }
       actualRead += consumeBuffer(buffer, actualRead, size - actualRead);
     }
     return actualRead;
   }
 
- protected:
+protected:
+  bool checkNeedsFill() const {
+    return this->m_rbuffer.size == 0;
+  }
   virtual size_t fillBuffer() {
     if (this->m_isSeekable &&
         lseek(this->m_handle, this->m_roffset, SEEK_SET) == -1) {
       invoke(file_error_handler, __FILE__, __FUNCTION__);
       return 0ul;
     }
+    if (this->m_isSeekable && eof())
+      return 0l;
+    errno = 0;
     auto rsize = ::read(
         this->m_handle, this->m_rbuffer.buf.data() + this->m_rbuffer.size,
         (this->m_rbuffer.buf.capacity() - this->m_rbuffer.size) * sizeof(T));
     if (rsize == -1l) {
+      invoke(file_error_handler, __FILE__, __FUNCTION__);
+      return 0ul;
+    }
+    if (errno != 0) {
       invoke(file_error_handler, __FILE__, __FUNCTION__);
       return 0ul;
     }
@@ -213,7 +233,7 @@ class basic_ifstream : public basic_fstream_unix<T> {
     this->m_roffset += rsize;
     return static_cast<size_t>(actualSize);
   }
-  virtual size_t consumeBuffer(array<T>& buffer, size_t start, size_t size) {
+  virtual size_t consumeBuffer(array<T> &buffer, size_t start, size_t size) {
     auto consumed = min(this->m_rbuffer.size - this->m_rbuffer.pos, size);
     memcpy(buffer.data() + start,
            this->m_rbuffer.buf.data() + this->m_rbuffer.pos,
@@ -225,7 +245,7 @@ class basic_ifstream : public basic_fstream_unix<T> {
     }
     return consumed;
   }
-  virtual pair<size_t, bool> consumeUntil(array<T>& buffer, size_t start,
+  virtual pair<size_t, bool> consumeUntil(array<T> &buffer, size_t start,
                                           size_t size, bool (*predicate)(T)) {
     size_t consumed = this->m_rbuffer.pos;
     auto const predicted =
@@ -253,8 +273,8 @@ class basic_ifstream : public basic_fstream_unix<T> {
 
 template <character_type T>
 class basic_ofstream : public basic_fstream_unix<T> {
- public:
-  basic_ofstream(array<T> const& filename) {
+public:
+  basic_ofstream(array<T> const &filename) {
     this->m_fn = filename;
     this->m_mode = IOMode::WRITE;
     this->openstream();
@@ -267,7 +287,8 @@ class basic_ofstream : public basic_fstream_unix<T> {
   }
 
   virtual ssize_t wseek(ssize_t offset, IOPos position) {
-    if (!this->m_isSeekable) return -1l;
+    if (!this->m_isSeekable)
+      return -1l;
     flush();
     if (lseek(this->m_handle, this->m_woffset, SEEK_SET) == -1) {
       invoke(file_error_handler, __FILE__, __FUNCTION__);
@@ -283,26 +304,28 @@ class basic_ofstream : public basic_fstream_unix<T> {
   virtual ssize_t tellw() const {
     return this->m_woffset + static_cast<ssize_t>(this->m_wbuffer.size);
   }
-  virtual size_t write(T const* buffer) {
+  virtual size_t write(T const *buffer) {
     array<T> arr{buffer, stringlen(buffer)};
     return write(arr);
   }
-  virtual size_t write(array<T> const& buffer) {
+  virtual size_t write(array<T> const &buffer) {
     return write(buffer, buffer.capacity());
   }
-  virtual size_t write(array<T> const& buffer, size_t size) {
+  virtual size_t write(array<T> const &buffer, size_t size) {
     size_t actualWritten = 0;
     while (actualWritten != size) {
       auto filled = fillBuffer(buffer, actualWritten, size - actualWritten);
       actualWritten += filled;
       if (this->m_wbuffer.size == this->m_wbuffer.buf.capacity()) {
-        if (flush() == 0) return actualWritten - filled;
+        if (flush() == 0)
+          return actualWritten - filled;
       }
     }
     return actualWritten;
   }
   virtual size_t flush() {
-    if (this->m_wbuffer.size == 0) return 0ul;
+    if (this->m_wbuffer.size == 0)
+      return 0ul;
     if (this->m_isSeekable &&
         lseek(this->m_handle, this->m_woffset, SEEK_SET) == -1) {
       invoke(file_error_handler, __FILE__, __FUNCTION__);
@@ -322,8 +345,8 @@ class basic_ofstream : public basic_fstream_unix<T> {
 
   ~basic_ofstream() { flush(); }
 
- protected:
-  virtual size_t fillBuffer(array<T> const& buffer, size_t start, size_t size) {
+protected:
+  virtual size_t fillBuffer(array<T> const &buffer, size_t start, size_t size) {
     size_t toFill =
         min(size, this->m_wbuffer.buf.capacity() - this->m_wbuffer.size);
     memcpy(this->m_wbuffer.buf.data() + this->m_wbuffer.size,
@@ -342,6 +365,6 @@ using ofstream = basic_ofstream<char>;
 using iwfstream = basic_ifstream<short>;
 using owfstream = basic_ofstream<short>;
 
+extern ofstream cerr;
 extern ifstream cin;
 extern ofstream cout;
-extern ofstream cerr;

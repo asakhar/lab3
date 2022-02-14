@@ -1,6 +1,7 @@
 #include "smartp.hpp"
 #include "type_traits.hpp"
 #include "streams.hpp"
+#include <cstdio>
 
 // #include <iostream>
 
@@ -64,6 +65,8 @@
 #include <cstring>
 
 int main(int argc, char const* argv[]) {
+  int a;
+  scanf("%d", &a);
   // if(0){
   //   if (argc < 3) return -1;
   //   char* end = nullptr;
