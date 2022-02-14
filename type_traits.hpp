@@ -49,24 +49,20 @@ struct remove_reference {
   using type = T;
 };
 
-template<typename T, typename D>
+template <typename T, typename D>
 struct is_same : public false_t {};
 
-template<typename T>
+template <typename T>
 struct is_same<T, T> : public true_t {};
 
-template<typename T, typename D>
+template <typename T, typename D>
 constexpr bool is_same_v = is_same<T, D>::value;
 
-template<typename T, typename D>
+template <typename T, typename D>
 concept same_as = is_same_v<T, D>;
 
 template <typename T>
 struct remove_reference<T&> {
-  using type = T;
-};
-template <typename T>
-struct remove_reference<T const&> {
   using type = T;
 };
 template <typename T>
@@ -111,16 +107,16 @@ template <typename T, typename... Args>
 constexpr bool is_constructible_v =
     is_constructible<void_t<>, T, Args...>::value;
 
-template<typename T>
+template <typename T>
 struct has_extent : public false_t {};
 
-template<typename T>
-struct has_extent <T[]> : public true_t {};
+template <typename T>
+struct has_extent<T[]> : public true_t {};
 
-template<typename T, unsigned long long SIZE>
-struct has_extent <T[SIZE]> : public true_t {};
+template <typename T, unsigned long long SIZE>
+struct has_extent<T[SIZE]> : public true_t {};
 
-template<typename T>
+template <typename T>
 constexpr bool has_extent_v = has_extent<T>::value;
 
 template <typename T>
@@ -170,18 +166,67 @@ constexpr T&& forward(remove_reference_t<T>&& t) {
 
 using nullptr_t = decltype(nullptr);
 
-template<typename T, bool = true>
+template <typename T, bool = true>
 struct condition_const {
   using type = T const;
 };
 
-template<typename T>
+template <typename T>
 struct condition_const<T, false> {
   using type = T;
 };
 
-template<typename T, bool Const>
+template <typename T, bool Const>
 using conditional_const_t = typename condition_const<T, Const>::type;
 
+template <typename T>
+struct is_character : public false_t {};
+template <>
+struct is_character<char> : public true_t {};
+template <>
+struct is_character<short> : public true_t {};
+
+template <typename T>
+constexpr bool is_character_v = is_character<T>::value;
+
+template <typename T>
+concept character_type = is_character_v<T>;
+
+template <typename, typename Callable, typename... Args>
+struct is_callable_with : public false_t {};
+
+template <typename Callable, typename... Args>
+struct is_callable_with<
+    void_t<decltype(declval<Callable>()(forward<Args>(declval<Args>())...))>,
+    Callable, Args...> : public true_t {};
+
+template <typename Callable, typename... Args>
+constexpr bool is_callable_with_v = is_callable_with<void_t<>, Callable, Args...>::value;
+
+template <typename Callable, typename... Args>
+using invoke_result_t = decltype(declval<Callable>()(forward<Args>(declval<Args>())...));
+
+template <typename Callable, typename... Args>
+requires is_callable_with_v<Callable, Args...>
+invoke_result_t<Callable, Args...> invoke(Callable&& functor, Args&&... args) {
+  return functor(forward<Args>(args)...);
+}
+
+template<typename First, typename Second>
+struct pair {
+  First first;
+  Second second;
+};
+
+template<typename T>
+T const& min(T a, T b) {
+  return a < b ? a : b;
+}
+
+// template <typename Callable, typename Object_t, typename... Args>
+// requires is_callable_with_v<invoke_result_t<Callable>, Args...>
+// invoke_result_t<Callable, Args...> invoke(Callable&& functor, Args&&... args) {
+//   return functor(forward<Args>(args)...);
+// }
 
 #endif  // TYPE_TRAITS_HPP
