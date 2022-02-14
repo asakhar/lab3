@@ -1,3 +1,4 @@
+#include <asm-generic/ioctls.h>
 #include <sys/types.h>
 
 #include <cstddef>
@@ -68,6 +69,7 @@ void default_file_error_handler(char const *FILE, char const *FUNCTION);
 #ifdef unix
 #include <fcntl.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 
 template <character_type T>
@@ -146,16 +148,31 @@ public:
       return ::lseek(this->m_handle, 0, SEEK_END);
     return 0l;
   }
-  bool eof() { return tellend() == tellr(); }
+  bool eof() {
+    if (this->m_isSeekable)
+      return tellend() == tellr();
+    int n;
+
+    auto res = ioctl(0, FIONREAD, &n);
+    if (res == -1) {
+      invoke(file_error_handler, __FILE__, __FUNCTION__);
+      return true;
+    }
+    if (n == 0)
+      return true;
+    return false;
+  }
   static bool is_nl(T ch) { return ch == '\n'; }
   virtual pair<array<T>, size_t> readline() { return readUntil(&is_nl); }
   virtual pair<array<T>, size_t> readUntil(bool (*predicate)(T)) {
     array<T> result{1};
     size_t totalRead = 0;
+    bool firstReq = true;
     for (;;) {
       auto const prevsize = result.capacity() >> 1;
       auto [readsize, res] =
-          readUntil(result, prevsize, result.capacity() - prevsize, predicate);
+          readUntil(result, prevsize, result.capacity() - prevsize, predicate, firstReq);
+      firstReq = false;
       totalRead += readsize;
       if (res)
         break;
@@ -168,16 +185,19 @@ public:
     }
     return {result, totalRead};
   }
-  virtual pair<size_t, bool> readUntil(array<T> &buffer, bool (*predicate)(T)) {
-    return readUntil(buffer, 0, buffer.capacity(), predicate);
+  virtual pair<size_t, bool> readUntil(array<T> &buffer, bool (*predicate)(T),
+                                       bool firstReq = true) {
+    return readUntil(buffer, 0, buffer.capacity(), predicate, firstReq);
   }
   virtual pair<size_t, bool> readUntil(array<T> &buffer, size_t start,
-                                       size_t size, bool (*predicate)(T)) {
+                                       size_t size, bool (*predicate)(T),
+                                       bool firstReq = true) {
     size_t actualRead = 0;
     bool found = false;
     while (actualRead != size) {
       if (checkNeedsFill()) {
-        auto filled = fillBuffer();
+        auto filled = fillBuffer(firstReq);
+        firstReq = false;
         if (filled == 0)
           break;
       }
@@ -191,11 +211,12 @@ public:
     }
     return {actualRead, found};
   }
-  virtual size_t read(array<T> &buffer, size_t size) {
+  virtual size_t read(array<T> &buffer, size_t size, bool firstReq = true) {
     size_t actualRead = 0;
     while (actualRead != size) {
       if (checkNeedsFill()) {
-        auto filled = fillBuffer();
+        auto filled = fillBuffer(firstReq);
+        firstReq = false;
         if (filled == 0)
           break;
       }
@@ -205,16 +226,14 @@ public:
   }
 
 protected:
-  bool checkNeedsFill() const {
-    return this->m_rbuffer.size == 0;
-  }
-  virtual size_t fillBuffer() {
+  bool checkNeedsFill() const { return this->m_rbuffer.size == 0; }
+  virtual size_t fillBuffer(bool firstRequest = true) {
     if (this->m_isSeekable &&
         lseek(this->m_handle, this->m_roffset, SEEK_SET) == -1) {
       invoke(file_error_handler, __FILE__, __FUNCTION__);
       return 0ul;
     }
-    if (this->m_isSeekable && eof())
+    if (!firstRequest && !this->m_isSeekable && eof())
       return 0l;
     errno = 0;
     auto rsize = ::read(
