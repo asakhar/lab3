@@ -44,7 +44,7 @@ void default_file_error_handler(char const *FILE, char const *FUNCTION) {
   cerr.write(strerror(errno));
   cerr.write("(");
   int constexpr int_width =
-      static_cast<int>(static_cast<double>(UINT_WIDTH) / log2_10) + 1;
+      static_cast<int>(static_cast<double>(UINT_WIDTH) / log2_10) + 2;
   array<char> buffer{static_cast<size_t>(int_width)};
   for (auto &item : buffer)
     item = '\0';

@@ -12,7 +12,7 @@ public:
   virtual ~basic_stream_traits() = default;
 
 protected:
-  static constexpr size_t BUFFER_SIZE = 3;
+  static constexpr size_t BUFFER_SIZE = 80;
   struct {
     array<T> buf{BUFFER_SIZE};
     size_t pos = 0;
