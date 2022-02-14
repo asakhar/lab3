@@ -2,12 +2,6 @@
 
 #include "streams.hpp"
 
-// #include <cstdio>
-
-// #include "file.hpp"
-// #include <algorithm>
-// #include <sstream>
-
 int main(int argc, char const *argv[]) {
   if (argc != 3) {
     cerr.write("Invalid number of arguments!\n");
