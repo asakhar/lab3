@@ -1,5 +1,3 @@
-#include <unistd.h>
-
 #include "streams.hpp"
 
 int main(int argc, char const *argv[]) {
@@ -9,7 +7,7 @@ int main(int argc, char const *argv[]) {
   }
   char *endp;
   auto n = std::strtol(argv[1], &endp, 10);
-  if (endp != argv[1] + strlen(argv[1])) {
+  if (endp != argv[1] + stringlen(argv[1])) {
     cerr.write("Invalid argument for number of symbols!\n");
     return 1;
   }
