@@ -18,7 +18,7 @@ int main(int argc, char const *argv[]) {
   auto line = cin.readline();
   ssize_t len = line.second;
   ssize_t isLastLF = line.first[len - 1] == '\n';
-  size_t len2cpy = min(len - isLastLF, n);
+  size_t len2cpy = min(static_cast<long long>(len) - isLastLF, n);
   array<char> text{len2cpy};
   memcpy(text.data(), line.first.data() + len - len2cpy - isLastLF, len2cpy);
   output.write(text, len2cpy);
