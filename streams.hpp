@@ -7,8 +7,13 @@
 
 enum class IOMode : int { READ = 1, WRITE = 2, READWRITE = 3 };
 enum class IOPos : int { SET = 0, CUR = 1, END = 2 };
+#ifdef __cpp_concepts
 
-template <character_type T> class basic_stream_traits {
+template <character_type T>
+#else
+template <typename T>
+#endif
+class basic_stream_traits {
 public:
   virtual ~basic_stream_traits() = default;
 
@@ -27,8 +32,13 @@ protected:
   ssize_t m_woffset = 0;
   array<T> m_fn;
 };
+#define fold(x) (__builtin_constant_p(x) ? (x) : (x))
 
+#ifdef __cpp_concepts
 template <character_type T, typename HANDLE_T>
+#else
+template <typename T, typename HANDLE_T>
+#endif
 class basic_fstream_traits : public basic_stream_traits<T> {
 public:
   void openstream() {
@@ -54,7 +64,7 @@ public:
   virtual ~basic_fstream_traits() = default;
 
 protected:
-  static constexpr HANDLE_T INVALID_HANDLE = reinterpret_cast<HANDLE_T>(-1);
+  inline static HANDLE_T INVALID_HANDLE = reinterpret_cast<HANDLE_T>(-1);
   vector<void (*)(basic_fstream_traits *)> m_open_actions;
   bool m_isSeekable = true;
 
@@ -379,8 +389,11 @@ protected:
 #elif _WIN32
 
 #include <windows.h>
-
+#ifdef __cpp_concepts
 template <character_type T>
+#else
+template <typename T>
+#endif
 class basic_fstream_windows : public basic_fstream_traits<T, HANDLE> {
 public:
   basic_fstream_windows() { this->m_open_actions.append(&open_windows); }
@@ -414,8 +427,11 @@ protected:
     }
   }
 };
-
+#ifdef __cpp_concepts
 template <character_type T>
+#else
+template <typename T>
+#endif
 class basic_ifstream : public basic_fstream_windows<T> {
 public:
   basic_ifstream(array<T> const &filename) {
@@ -612,8 +628,11 @@ protected:
     return {consumed, result};
   }
 };
-
+#ifdef __cpp_concepts
 template <character_type T>
+#else
+template <typename T>
+#endif
 class basic_ofstream : public basic_fstream_windows<T> {
 public:
   basic_ofstream(array<T> const &filename) {
@@ -650,10 +669,10 @@ public:
   }
   virtual size_t write(T const *buffer) {
     array<T> arr{buffer, stringlen(buffer)};
-    return write(arr);
+    return this->write(arr);
   }
   virtual size_t write(array<T> const &buffer) {
-    return write(buffer, buffer.capacity());
+    return this->write(buffer, buffer.capacity());
   }
   virtual size_t write(array<T> const &buffer, size_t size) {
     size_t actualWritten = 0;

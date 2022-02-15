@@ -14,7 +14,7 @@ if(MSVC)
 else()
   target_compile_options(default INTERFACE -Wall -Wextra -Wpedantic -Werror)
 endif()
-target_compile_features(default INTERFACE cxx_constexpr cxx_std_23 )
+target_compile_features(default INTERFACE cxx_constexpr cxx_std_20 cxx_std_17 )
 
 add_executable(lab lab.cpp streams.cpp)
 # add_executable(test text.cpp streams.cpp)

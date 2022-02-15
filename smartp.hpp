@@ -1,6 +1,7 @@
 #ifndef SMARTP_HPP
 #define SMARTP_HPP
 
+#include "type_traits.hpp"
 #include <cstddef>
 #include <cstdint>
 #ifdef _WIN32
@@ -11,7 +12,6 @@ typedef SSIZE_T ssize_t;
 #endif
 #endif
 
-#include "type_traits.hpp"
 #include <stdexcept>
 
 template <typename T> void swap(T a, T b) {
@@ -25,6 +25,7 @@ template <typename T> struct default_deleter_t {
 #ifdef __linux__
     delete pointer;
 #elif _WIN32
+      pointer->~T();
     HeapFree(GetProcessHeap(), 0, reinterpret_cast<LPVOID>(pointer));
 #endif
   }
@@ -34,6 +35,8 @@ template <typename T> struct default_deleter_t<T[]> {
 #ifdef __linux__
     delete[] pointer;
 #elif _WIN32
+      if (pointer == nullptr)
+          return;
     size_t *real = reinterpret_cast<size_t *>(pointer) - 1;
     auto const size = *real;
     for (size_t i = 0; i < size; ++i)
@@ -60,6 +63,8 @@ template <typename T> struct default_allocator_t<T[]> {
 #elif _WIN32
     auto real = reinterpret_cast<size_t *>(
         HeapAlloc(GetProcessHeap(), 0, sizeof(T) * size + sizeof(size_t)));
+    if (real == nullptr)
+        return nullptr;
     *real = size;
     auto ptr = reinterpret_cast<T *>(real + 1);
     for (size_t i = 0; i < size; ++i)
@@ -127,7 +132,14 @@ public:
     return tmp;
   }
   explicit operator bool() const noexcept { return m_ptr != nullptr; }
-  template <convertible<type> T> operator T *() const noexcept { return m_ptr; }
+#ifdef __cpp_concepts
+  template <convertible<type> T>
+#else
+  template <typename T>
+#endif
+  operator T *() const noexcept {
+    return m_ptr;
+  }
   explicit uniq_ptr(pointer ptr) noexcept : m_ptr{ptr} {}
   uniq_ptr(pointer ptr, deleter &&del) noexcept : m_ptr{ptr}, m_del{del} {}
   uniq_ptr(uniq_ptr const &) = delete;
@@ -172,7 +184,15 @@ public:
     return tmp;
   }
   explicit operator bool() const noexcept { return m_ptr != nullptr; }
-  template <convertible<type> T> operator T *() const noexcept { return m_ptr; }
+#ifdef __cpp_concepts
+
+  template <convertible<type> T>
+#else
+  template <typename T>
+#endif
+  operator T *() const noexcept {
+    return m_ptr;
+  }
   explicit uniq_ptr(pointer ptr) noexcept : m_ptr{ptr} {}
   uniq_ptr(pointer ptr, deleter &&del) noexcept : m_ptr{ptr}, m_del{del} {}
   uniq_ptr(uniq_ptr const &) = delete;
@@ -217,13 +237,20 @@ public:
     return tmp;
   }
   explicit operator bool() const noexcept { return m_ptr != nullptr; }
-  template <convertible<type> T> operator T *() const noexcept { return m_ptr; }
+#ifdef __cpp_concepts
+  template <convertible<type> T>
+#else
+  template <typename T>
+#endif
+  operator T *() const noexcept {
+    return m_ptr;
+  }
   explicit uniq_ptr(pointer ptr) noexcept : m_ptr{ptr} {}
   uniq_ptr(pointer ptr, deleter &&del) noexcept : m_ptr{ptr}, m_del{del} {}
   uniq_ptr(uniq_ptr const &) = delete;
-  uniq_ptr(uniq_ptr &&move) : m_ptr{move.m_ptr} { move.m_ptr = nullptr; }
+  uniq_ptr(uniq_ptr &&move) noexcept : m_ptr{move.m_ptr} { move.m_ptr = nullptr; }
   uniq_ptr &operator=(uniq_ptr const &) = delete;
-  uniq_ptr &operator=(uniq_ptr &&move) {
+  uniq_ptr &operator=(uniq_ptr &&move) noexcept {
     reset(move.m_ptr);
     move.m_ptr = nullptr;
     return *this;
@@ -243,14 +270,21 @@ protected:
 };
 
 template <typename T, typename... Args>
-requires is_constructible_v<T, Args...> uniq_ptr<T> make_uniq(Args &&...args) {
+#ifdef __cpp_concepts
+requires is_constructible_v<T, Args...>
+#endif
+    uniq_ptr<T> make_uniq(Args &&...args) {
   return uniq_ptr<T>{new T(forward<Args>(args)...)};
 }
 
 template <typename T>
+#ifdef __cpp_concepts
 requires has_extent_v<T> && is_default_constructible_v<remove_extent_t<T>>
+#endif
     uniq_ptr<T> make_uniq(size_t size) {
-  return uniq_ptr<T>{new remove_extent_t<T>[size]};
+  return uniq_ptr<T>{
+      default_allocator_t<T>{}(size)
+  };
 }
 // extern "C" void* malloc(size_t)
 // __THROW __attribute_malloc__;
@@ -266,17 +300,21 @@ template <typename T> void destruct(T *ptr) {
 }
 
 template <typename T, typename... Args>
+#ifdef __cpp_concepts
 requires has_extent_v<T> &&
     (same_as<remove_extent_t<T>, remove_reference_t<Args>> &&...)
+#endif
         uniq_ptr<T> make_uniql(Args &&...args) {
-  // size_t size = sizeof...(Args);
   auto ptr = new remove_extent_t<T>[] { forward<Args>(args)... };
   return uniq_ptr<T>{ptr};
 }
 
 template <typename T, typename... Args>
-requires has_extent_v<T> uniq_ptr<T, decltype(&destruct<remove_extent_t<T>>)>
-make_uniq(size_t size, Args &&...args) {
+#ifdef __cpp_concepts
+requires has_extent_v<T>
+#endif
+    uniq_ptr<T, decltype(&destruct<remove_extent_t<T>>)>
+    make_uniq(size_t size, Args &&...args) {
   size_t *allocated = reinterpret_cast<size_t *>(
       new char[(size * sizeof(remove_extent_t<T>) + sizeof(size_t))]);
   allocated[0] = size;
@@ -290,30 +328,50 @@ make_uniq(size_t size, Args &&...args) {
 }
 
 template <typename T, typename Deleter, typename... Args>
-requires is_constructible<T, Args...>::value uniq_ptr<T>
-make_uniqd(Deleter &&del, Args &&...args) {
-  return {new T{forward<Args>(args)...}, forward<T>(del)};
+#ifdef __cpp_concepts
+requires is_constructible<T, Args...>::value
+#endif
+    uniq_ptr<T>
+    make_uniqd(Deleter &&del, Args &&...args) {
+  return {
+    default_allocator_t<T>{}(forward<Args>(args)...)
+    // new T{forward<Args>(args)...}
+    , forward<T>(del)};
 }
 
 template <typename T, typename Deleter>
+#ifdef __cpp_concepts
 requires has_extent_v<T> && is_default_constructible_v<remove_extent_t<T>>
+#endif
     uniq_ptr<T> make_uniqd(Deleter &&del, size_t size) {
-  return {new remove_extent_t<T>[size], forward<Deleter>(del)};
+  return {
+    default_allocator_t<T>{}(size)
+    // new remove_extent_t<T>[size]
+    , forward<Deleter>(del)};
 }
 
 template <typename T, typename Deleter, typename Allocator, typename... Args>
-requires is_constructible<T, Args...>::value uniq_ptr<T>
-make_uniqda(Deleter &&del, Allocator &&allocator, Args &&...args) {
+#ifdef __cpp_concepts
+requires is_constructible<T, Args...>::value
+#endif
+    uniq_ptr<T>
+    make_uniqda(Deleter &&del, Allocator &&allocator, Args &&...args) {
   return {allocator(forward<Args>(args)...), forward<T>(del)};
 }
 
 template <typename T, typename Deleter, typename Allocator>
+#ifdef __cpp_concepts
 requires has_extent_v<T> && is_default_constructible_v<remove_extent_t<T>>
+#endif
     uniq_ptr<T> make_uniqda(Deleter &&del, Allocator &&allocator, size_t size) {
   return {allocator(size), forward<Deleter>(del)};
 }
-
-template <character_type T> inline size_t stringlen(T const *str) {
+#ifdef __cpp_concepts
+template <character_type T>
+#else
+template <typename T>
+#endif
+inline size_t stringlen(T const *str) {
   T const *end = str;
   while (*end)
     ++end;

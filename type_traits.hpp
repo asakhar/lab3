@@ -58,8 +58,10 @@ struct is_same<T, T> : public true_t {};
 template <typename T, typename D>
 constexpr bool is_same_v = is_same<T, D>::value;
 
+#ifdef __cpp_concepts
 template <typename T, typename D>
 concept same_as = is_same_v<T, D>;
+#endif
 
 template <typename T>
 struct remove_reference<T&> {
@@ -138,8 +140,10 @@ struct is_convertible<void_t<decltype(consume<D>(declval<T>()))>, T, D>
 template <typename T, typename D>
 constexpr bool is_convertible_v = is_convertible<void_t<>, T, D>::value;
 
+#ifdef __cpp_concepts
 template <typename T, typename D>
 concept convertible = is_convertible_v<D, T>;
+#endif
 
 template <typename, typename T, typename D>
 struct is_assignable : public constant_t<is_convertible_v<D, T>> {};
@@ -151,8 +155,10 @@ struct is_assignable<void_t<decltype(declvar<T>() = declval<D>())>, T, D>
 template <typename T, typename D>
 constexpr bool is_assignable_v = is_assignable<void_t<>, T, D>::value;
 
+#ifdef __cpp_concepts
 template <typename T>
 concept default_constructible = is_default_constructible_v<T>;
+#endif
 
 template <typename T>
 constexpr T&& forward(remove_reference_t<T>& t) {
@@ -189,8 +195,10 @@ struct is_character<short> : public true_t {};
 template <typename T>
 constexpr bool is_character_v = is_character<T>::value;
 
+#ifdef __cpp_concepts
 template <typename T>
 concept character_type = is_character_v<T>;
+#endif
 
 template <typename, typename Callable, typename... Args>
 struct is_callable_with : public false_t {};
@@ -207,7 +215,9 @@ template <typename Callable, typename... Args>
 using invoke_result_t = decltype(declval<Callable>()(forward<Args>(declval<Args>())...));
 
 template <typename Callable, typename... Args>
+#ifdef __cpp_concepts
 requires is_callable_with_v<Callable, Args...>
+#endif
 invoke_result_t<Callable, Args...> invoke(Callable&& functor, Args&&... args) {
   return functor(forward<Args>(args)...);
 }
@@ -218,8 +228,10 @@ struct pair {
   Second second;
 };
 
+#undef min
+
 template<typename T>
-T const& min(T a, T b) {
+T const& min(T const& a, T const& b) {
   return a < b ? a : b;
 }
 
